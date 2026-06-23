@@ -1,0 +1,12 @@
+{
+  "name": "jade-trail-engine",
+  "version": "1.0.0",
+  "description": "Jade Suprema trailing stop engine — runs 24/7 on Render",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

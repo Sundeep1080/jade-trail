@@ -298,11 +298,34 @@ async function runTrailingEngine() {
 // Render requires an HTTP server to keep the process alive.
 // Also receives trail state and auth from your HTML.
 // ═════════════════════════════════════════════════════════════════
+
+// ── Secret key — set this as an environment variable on Render ──
+// Render Dashboard → your service → Environment → Add environment variable
+// Key: TRAIL_SECRET   Value: pick any long random string e.g. jade2024sundeep
+// Your HTML must send the same value in every request header.
+// Anyone without this key gets a 401 — even if they know your URL.
+const TRAIL_SECRET = process.env.TRAIL_SECRET || null;
+
+function checkSecret(req, res) {
+  // If no secret is configured, warn in logs but allow (backwards compat)
+  if (!TRAIL_SECRET) {
+    log('WARNING: TRAIL_SECRET not set — endpoints are unprotected. Set it on Render.');
+    return true;
+  }
+  const incoming = req.headers['x-trail-secret'] || '';
+  if (incoming !== TRAIL_SECRET) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end('{"status":"error","message":"unauthorized"}');
+    return false;
+  }
+  return true;
+}
+
 const server = http.createServer(async (req, res) => {
   // CORS headers — allow your HTML to talk to this server
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Trail-Secret');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204); res.end(); return;
@@ -311,7 +334,10 @@ const server = http.createServer(async (req, res) => {
   const url = req.url.split('?')[0];
 
   // ── GET /state — HTML reads current trail state ───────────────
+  // Protected: requires X-Trail-Secret header
+  // Returns trailState only — never returns auth/token to the caller
   if (req.method === 'GET' && url === '/state') {
+    if (!checkSecret(req, res)) return;
     const state = loadState();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(state.trailState || {}));
@@ -319,7 +345,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── POST /state — HTML sends updated trail state + auth ───────
+  // Protected: requires X-Trail-Secret header
   if (req.method === 'POST' && url === '/state') {
+    if (!checkSecret(req, res)) return;
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
@@ -327,7 +355,8 @@ const server = http.createServer(async (req, res) => {
         const payload = JSON.parse(body);
         const state   = loadState();
         if (payload.state !== undefined) state.trailState = payload.state;
-        if (payload.auth  && payload.auth.api_key) state.auth = payload.auth;
+        // Store auth but never echo it back in any response
+        if (payload.auth && payload.auth.api_key) state.auth = payload.auth;
         saveState(state);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('{"status":"ok"}');
@@ -338,7 +367,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── GET /ping — health check (Render uses this to keep alive) ──
+  // ── GET /ping — health check — public, but shows no sensitive data ──
   if (req.method === 'GET' && url === '/ping') {
     const state = loadState();
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -351,7 +380,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── GET / — simple status page ────────────────────────────────
+  // ── GET / — simple status page — public, shows no sensitive data ──
   if (req.method === 'GET' && url === '/') {
     const state    = loadState();
     const positions = Object.values(state.trailState || {});

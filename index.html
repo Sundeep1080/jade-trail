@@ -2276,7 +2276,10 @@ const SIG_PRIORITY={'B1-OS':5,'B2':4,'B1-MOM':3,'B3':1,'S1-OB':5,'S2':4,'S1-MOM'
 const DOW_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const DOW_DISSOLVE={1:'Friday',2:'Monday',3:'Tuesday',4:'Wednesday',5:'Thursday'};
 const ZD_WORKER='https://jade-kite.sundeep1080.workers.dev';
-const TRAIL_SERVER='https://jade-trail.onrender.com'; /* Render trail engine — runs 24/7 */
+const TRAIL_SERVER='https://jade-trail.onrender.com';
+/* ── Same secret set in Render environment variable TRAIL_SECRET ── */
+const TRAIL_SECRET='jade2024sundeep';
+const TRAIL_HDR={'Content-Type':'application/json','X-Trail-Secret':TRAIL_SECRET};
 
 // ═══════════════════════════════════════════════════════════
 // STATE
@@ -3139,7 +3142,7 @@ function zdConnect(){
       document.getElementById('zdHistBtn').disabled=false;document.getElementById('zdLTPBtn').disabled=false;document.getElementById('zdAutoBtn').disabled=false;
       document.getElementById('pill-kite').style.display='inline-block';
       zdLog('Connected via jade-kite.sundeep1080.workers.dev');toast('Zerodha Kite connected','kite');
-      fetch(`${TRAIL_SERVER}/state`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({auth:{api_key:zdApiKey,token:zdToken}})}).catch(()=>{});
+      fetch(`${TRAIL_SERVER}/state`,{method:'POST',headers:TRAIL_HDR,body:JSON.stringify({auth:{api_key:zdApiKey,token:zdToken}})}).catch(()=>{});
       if(!zdInterval){const now=new Date(),close=new Date();close.setHours(15,30,0,0);if(now<=close){const autoBtn=document.getElementById('zdAutoBtn');zdInterval=setInterval(()=>{const n=new Date(),c=new Date();c.setHours(15,30,0,0);if(n>c){clearInterval(zdInterval);zdInterval=null;if(zdRescanInterval){clearInterval(zdRescanInterval);zdRescanInterval=null}if(autoBtn)autoBtn.innerHTML='<i class="fas fa-sync"></i> Auto OFF';return}zdFetchNow();check3PMAlert();checkAutoExport()},30000);if(!zdRescanInterval)zdRescanInterval=setInterval(zdAutoRescan,3600000);if(autoBtn)autoBtn.innerHTML='<i class="fas fa-sync fa-spin"></i> Auto ON';zdFetchNow()}}
     }else{zdSetDot('err');zdSetStatus('Connection failed','err');toast('Kite connection failed','err')}
   });
@@ -7411,11 +7414,11 @@ const TRAIL_STEP = 0.5;     // peak must rise by this many % before SL re-ratche
 const TRAIL_STATE_KEY='tram_trail_state';
 function saveTrailState(){
   try{localStorage.setItem(TRAIL_STATE_KEY,JSON.stringify(trailState))}catch(e){}
-  fetch(`${TRAIL_SERVER}/state`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:trailState})}).catch(()=>{});
+  fetch(`${TRAIL_SERVER}/state`,{method:'POST',headers:TRAIL_HDR,body:JSON.stringify({state:trailState})}).catch(()=>{});
 }
 function loadTrailState(){
   try{const r=localStorage.getItem(TRAIL_STATE_KEY);if(r)trailState=JSON.parse(r)}catch(e){trailState={}}
-  fetch(`${TRAIL_SERVER}/state`).then(r=>r.json()).then(sv=>{
+  fetch(`${TRAIL_SERVER}/state`,{headers:TRAIL_HDR}).then(r=>r.json()).then(sv=>{
     const rank={fixed:0,tp_hit:1,trailing:2};let changed=false;
     Object.entries(sv||{}).forEach(([lid,srv])=>{
       const loc=trailState[lid];
@@ -7429,7 +7432,7 @@ function loadTrailState(){
 async function zdCheckTrailing(){
   if(!zdLiveMode)return;
   try{
-    const sv=await fetch(`${TRAIL_SERVER}/state`).then(r=>r.json());
+    const sv=await fetch(`${TRAIL_SERVER}/state`,{headers:TRAIL_HDR}).then(r=>r.json());
     const rank={fixed:0,tp_hit:1,trailing:2};
     Object.entries(sv||{}).forEach(([lid,srv])=>{
       const loc=trailState[lid];
